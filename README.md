@@ -4,7 +4,7 @@ Turn a voice recording into a [Supertonic 3](https://huggingface.co/Supertone/su
 **style** — the `style_ttl [1,50,256]` + `style_dp [1,8,16]` tensors the
 synthesiser speaks with — and do it cheaply enough to run on a phone.
 
-This repo is the methodology, the trained models, the Python that produced them,
+The full step-by-step is in [**method.md**](method.md). This repo is the methodology, the trained models, the Python that produced them,
 and a small **Rust `clonevoice`** program that takes a `.wav` and writes the
 style `.json`.
 
