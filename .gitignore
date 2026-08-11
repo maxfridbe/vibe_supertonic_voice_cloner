@@ -1,0 +1,8 @@
+# Rust
+rust/clonevoice/target/
+# downloaded ONNX Runtime (fetch per README)
+onnxruntime-*/
+*.tgz
+# python
+__pycache__/
+*.pyc

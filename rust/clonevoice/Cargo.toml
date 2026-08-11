@@ -1,0 +1,18 @@
+[package]
+name = "clonevoice"
+version = "0.1.0"
+edition = "2021"
+description = "Clone a Supertonic voice from a WAV into a style JSON, on-device (encoder path)"
+license = "Apache-2.0"
+
+[dependencies]
+# load-dynamic: dlopen ONNX Runtime at run time (point ORT_DYLIB_PATH at
+# libonnxruntime.so). Avoids ort-sys's download build script, which currently
+# breaks against ureq 3.4. See README for fetching the runtime.
+ort = { version = "=2.0.0-rc.13", default-features = false, features = ["load-dynamic"] }
+hound = "3.5"
+serde_json = "1"
+
+[[bin]]
+name = "clonevoice"
+path = "src/main.rs"
