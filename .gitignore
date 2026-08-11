@@ -6,3 +6,4 @@ onnxruntime-*/
 # python
 __pycache__/
 *.pyc
+rust/clonevoice/test-supertonic/

@@ -102,7 +102,11 @@ rust/clonevoice/ a sample CLI: wav in, style JSON out (the encoder path)
 ```sh
 cd rust/clonevoice
 cargo build --release
+# encoder path (~0.5, sub-second):
 ./target/release/clonevoice reference.wav out.json --models ../../models --name "My Voice"
+# + refine to ~0.8 (needs the Supertonic graphs; see rust/clonevoice/README.md):
+./target/release/clonevoice reference.wav out.json --models ../../models \
+    --supertonic /path/to/supertonic-3 --refine --iters 120 --pop 20
 ```
 
 `out.json` is schema-identical to Supertonic's published styles, so

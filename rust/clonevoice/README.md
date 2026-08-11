@@ -34,3 +34,22 @@ cargo build --release
 
 This is the *encoder* path (~0.43–0.49 held-out). For higher fidelity, refine it
 on-device in the app, or use the desktop gradient inversion (`../../python`).
+
+## Refine (reach ~0.8, like the app)
+
+The encoder path lands near a speaker (~0.5). `--refine` then runs the forward-
+only CMA search over the k=384 basis to close the gap — the same loop the app
+runs in the background. It needs the Supertonic graphs:
+
+```sh
+# the four Supertonic ONNX graphs + tts.json + unicode_indexer.json
+# (from https://huggingface.co/Supertone/supertonic-3, or the app's model cache)
+./target/release/clonevoice reference.wav out.json \
+    --models ../../models --supertonic /path/to/supertonic-3 \
+    --refine --iters 120 --pop 20
+```
+
+Each generation prints the best cosine so far. The full budget (iters 120 ×
+pop 20 ≈ 2400 evaluations) reaches 0.80–0.83 held-out on many voices; a small
+budget (`--iters 4 --pop 8`) is a quick smoke test. Everything is forward passes
+— no autograd, no GPU.

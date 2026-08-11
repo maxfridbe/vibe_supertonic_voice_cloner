@@ -11,6 +11,8 @@ use ort::session::Session;
 use ort::value::Tensor;
 use std::path::{Path, PathBuf};
 
+mod refine;
+
 const RATE: u32 = 16_000; // the ECAPA speaker encoder eats 16 kHz mono
 const MAX_SECS: usize = 12; // identity saturates after a few seconds
 
@@ -26,11 +28,19 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let mut positional = Vec::new();
     let mut models = PathBuf::from("../../models");
     let mut name = String::new();
+    let mut supertonic: Option<PathBuf> = None;
+    let mut do_refine = false;
+    let mut iters = 120usize;
+    let mut pop = 20usize;
     let mut i = 1;
     while i < args.len() {
         match args[i].as_str() {
             "--models" => { models = PathBuf::from(&args[i + 1]); i += 2; }
             "--name" => { name = args[i + 1].clone(); i += 2; }
+            "--supertonic" => { supertonic = Some(PathBuf::from(&args[i + 1])); i += 2; }
+            "--refine" => { do_refine = true; i += 1; }
+            "--iters" => { iters = args[i + 1].parse().unwrap_or(120); i += 2; }
+            "--pop" => { pop = args[i + 1].parse().unwrap_or(20); i += 2; }
             other => { positional.push(other.to_string()); i += 1; }
         }
     }
@@ -58,17 +68,27 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let mut style = Session::builder()?.commit_from_file(models.join("style_encoder.onnx"))?;
     let emb_t = Tensor::from_array(([1_i64, emb.len() as i64], emb))?;
     let style_out = style.run(ort::inputs!["embedding" => emb_t])?;
-    let ttl: Vec<f32> = style_out[0].try_extract_tensor::<f32>()?.1.to_vec();
-    let dp: Vec<f32> = style_out[1].try_extract_tensor::<f32>()?.1.to_vec();
+    let mut ttl: Vec<f32> = style_out[0].try_extract_tensor::<f32>()?.1.to_vec();
+    let mut dp: Vec<f32> = style_out[1].try_extract_tensor::<f32>()?.1.to_vec();
     if ttl.len() != 50 * 256 || dp.len() != 8 * 16 {
         return Err(format!("unexpected style shape: ttl={} dp={}", ttl.len(), dp.len()).into());
+    }
+
+    // 2b) optional refine: search the style basis to close the encoder's gap
+    let mut source = "clonevoice (encoder path)";
+    if do_refine {
+        let sup = supertonic.as_ref().ok_or("--refine requires --supertonic <dir>")?;
+        let r = refine::refine(sup, &models, audio, &ttl, &dp, iters, pop)?;
+        eprintln!("refined: {:.3} -> {:.3} over {} evals", r.start_cos, r.end_cos, r.evals);
+        ttl = r.ttl; dp = r.dp;
+        source = "clonevoice (refined)";
     }
 
     // 3) write the style JSON Supertonic plays
     let json = serde_json::json!({
         "style_ttl": { "dims": [1, 50, 256], "data": ttl },
         "style_dp":  { "dims": [1, 8, 16],   "data": dp },
-        "metadata":  { "name": name, "source": "clonevoice (encoder path)", "reference": input }
+        "metadata":  { "name": name, "source": source, "reference": input }
     });
     std::fs::write(output, serde_json::to_string(&json)?)?;
     eprintln!("wrote {output}");
