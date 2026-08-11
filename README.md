@@ -58,8 +58,21 @@ The PCA basis (`style_basis.bin`, `train_encoder.py`'s `StyleBasis`) is fit on
 the inverted real-speaker styles; at k=128 it captures 89.4 % of their variance.
 **It is the ceiling**: a style outside the basis span can't be expressed, so the
 encoder's held-out score (~0.49) is bounded by how much of a real voice the
-basis can represent. Raising k (e.g. 384) lifts some voices past 0.8 —
-`basis_ceiling.py` measures it.
+basis can represent.
+
+**Raising k breaks the ceiling.** At k=384 the basis captures 96.1 % of the
+variance, and the refine search over it reaches the desktop reference:
+
+| Voice | refine @k=128 | refine @k=384 |
+|---|---|---|
+| Soothing female british | 0.771 | **0.826** |
+| Fireside Narrator | 0.756 | **0.802** |
+| Stephen Fry | 0.652 | 0.758 |
+| Dale | 0.759 | 0.716 |
+
+`export_k384.py` writes the wider basis; `basis_k_sweep.py` and
+`basis_ceiling.py` are the diagnostics. The shipped `models/style_basis.bin`
+here is the k=384 one.
 
 ### 3. Refine — forward-only search, on-device
 
