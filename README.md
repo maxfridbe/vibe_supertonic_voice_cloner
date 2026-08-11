@@ -18,7 +18,7 @@ style `.json`.
 |---|---|---|---|
 | **Gradient inversion** | desktop GPU, autograd | **~0.82** | optimise the style tensors directly against the recording |
 | **Encoder** (this repo's Rust tool) | phone, 2 forward passes | ~0.43–0.49 | a net predicts the style from a speaker embedding |
-| **Refine** (CMA polish) | phone, forward-only search | ~0.60–0.77 | gradient-free search over a style basis, seeded by the encoder |
+| **Refine** (CMA polish) | phone, forward-only search | ~0.72–0.83 | gradient-free search over a style basis, seeded by the encoder |
 
 <sub>*held-out ECAPA speaker cosine to the reference recording, not the sentence being fitted.*</sub>
 
@@ -77,14 +77,15 @@ here is the k=384 one.
 ### 3. Refine — forward-only search, on-device
 
 The encoder lands *near* a speaker, not on them. Gradient inversion would close
-the gap but needs autograd; a phone has neither. So search the same basis with a
-gradient-free optimiser — **separable CMA-ES** (`cma_polish.py`): decode a
-candidate coefficient vector → synthesise a short probe → embed it → score
-cosine to the reference → hill-climb. Every evaluation is one forward synthesis
-plus one embedding, both of which a phone already runs. ~1300 evaluations lift
-character voices from ~0.2 to ~0.65–0.77 — most of the way to the desktop
-reference, using only forward passes. This is the loop the TTS Runner app runs
-in the background as "Refine this voice".
+the gap but needs autograd and a GPU; a phone has neither. So search the same
+basis with a gradient-free optimiser — **separable CMA-ES** (`cma_polish.py`):
+decode a candidate coefficient vector → synthesise a short probe → embed it →
+score cosine to the reference → hill-climb. Every evaluation is one forward
+synthesis plus one embedding, both of which a phone already runs. ~2,400
+evaluations (120 generations × 20 pop) over the k=384 basis lift voices to
+0.72–0.83 — the best of them matching the desktop reference, using only forward
+passes. This is the loop the TTS Runner app runs in the background as "Refine
+this voice".
 
 ## Repo layout
 
@@ -102,7 +103,7 @@ rust/clonevoice/ a sample CLI: wav in, style JSON out (the encoder path)
 ```sh
 cd rust/clonevoice
 cargo build --release
-# encoder path (~0.5, sub-second):
+# encoder path (~0.43–0.49, sub-second):
 ./target/release/clonevoice reference.wav out.json --models ../../models --name "My Voice"
 # + refine to ~0.8 (needs the Supertonic graphs; see rust/clonevoice/README.md):
 ./target/release/clonevoice reference.wav out.json --models ../../models \

@@ -13,8 +13,9 @@ A Qwen3-TTS analyzer variant (2048-d embedding) also exists in the app repo
 (`qwen_spk_encoder.onnx` + `style_encoder_qwen.onnx`); it trades a little cosine
 for a listening-preferred result on character voices.
 
-Held-out speaker cosine (encoder alone): 0.43–0.49. With the on-device refine on
-top: 0.60–0.77. The desktop gradient inversion these are trained toward: ~0.82.
+Held-out speaker cosine (encoder alone): 0.43–0.49. With the on-device refine
+over the shipped k=384 basis: 0.72–0.83. The desktop gradient inversion these
+are trained toward: ~0.82.
 
 No model here is a real person: the encoder was trained on inverted corpus
 speakers and manufactured basis samples, and it emits a style, not a recording.
