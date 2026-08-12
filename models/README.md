@@ -6,7 +6,7 @@ the scripts in `../python`.
 | File | What | Shapes |
 |---|---|---|
 | `spk_encoder.onnx` | ECAPA-TDNN speaker encoder | `wav [1, N]` (16 kHz mono) → `[1, 192]` |
-| `style_encoder.onnx` | translation head | `embedding [1, 192]` → `style_ttl [1, 50, 256]`, `style_dp [1, 8, 16]` |
+| `style_encoder.onnx` | translation head (2048×4 MLP + folded k=384 basis, 75 MB) | `embedding [1, 192]` → `style_ttl [1, 50, 256]`, `style_dp [1, 8, 16]` |
 | `style_basis.bin` | PCA style basis for the refine search | little-endian: `int32` header (k, D, split, ttl_r, ttl_c, dp_r, dp_c) then `scale[k]`, `mean[D]`, `basis[k·D]` |
 
 A Qwen3-TTS analyzer variant (2048-d embedding) also exists in the app repo
