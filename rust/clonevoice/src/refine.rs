@@ -11,15 +11,20 @@ use unicode_normalization::UnicodeNormalization;
 
 /// Full-fidelity probe, used only to score the seed and the final winner.
 const PROBE: &str = "A cup of coffee on the desk had long since gone cold.";
-/// Search-time probe: ECAPA identity saturates in a couple of seconds, so the
-/// 2,400 throwaway ranking syntheses don't need the long sentence.
-const PROBE_SEARCH: &str = "The coffee on the desk had gone cold.";
+/// Search-time probe. Phonetically rich (Rainbow Passage opener) — measured on
+/// a 20-voice sweep it beats a short probe by +0.061 mean held-out cosine
+/// (19/20 voices, up to +0.177): broad vowel/consonant coverage gives the
+/// ECAPA "listener" more of the timbre spectrum to match per evaluation, worth
+/// more than its extra synthesis length.
+const PROBE_SEARCH: &str =
+    "When sunlight strikes raindrops in the air, they act as a prism and form a rainbow.";
 /// Flow steps during search vs. final scoring: ranking candidates doesn't need
 /// render quality.
 const SEARCH_STEPS: usize = 4;
 const FINAL_STEPS: usize = 8;
 /// Stop when the best cosine hasn't improved for this many generations.
-const PATIENCE: usize = 15;
+/// (15 measurably cut hard voices short in the sweep; 25 kept the quality.)
+const PATIENCE: usize = 25;
 const RATE: u32 = 16_000;
 
 type Err = Box<dyn std::error::Error>;

@@ -49,9 +49,35 @@ generated, so ground-truth styles are known).
 in-span by construction — so this measures the optimizer, not the basis
 ceiling.
 
-**Findings so far:** first row: aurora-belle `base-short` 0.379 → 0.736
-held-out (style-cos 0.974, 5.8 min). Full sweep ~5 h; results land in
-`clone_out/overnight/refine_experiments{,_b}.json`.
+**Findings (✅, 120 runs / 20 voices complete):**
+
+| condition | held-out | fresh | synths | voice wins |
+|---|---|---|---|---|
+| base-short (no patience) | 0.743 | 0.690 | 2,405 | 0 |
+| pat15 | 0.708 | 0.662 | 1,631 | 0 |
+| pat25 | 0.712 | 0.656 | 1,790 | 0 |
+| c2f-pat25 | 0.711 | 0.666 | 2,115 | 0 |
+| **rich-pat25** | **0.804** | 0.722 | 2,133 | **11** |
+| dual-pat25 | 0.798 | **0.738** | 4,334 | 9 |
+
+1. **The probe dominates everything.** All 20 per-voice wins went to a probe
+   variant; the phonetically rich probe beats the short-probe baseline on
+   19/20 voices (mean **+0.061**, max +0.177, worst −0.010) at *less* cost —
+   ECAPA gets more of the timbre spectrum to match per evaluation.
+2. **Dual probes ≈ rich probe** on quality (slightly better on fresh
+   sentences) at 2× the synthesis cost — not worth it on-device.
+3. **Patience alone loses quality** (−0.03 vs baseline at 15 or 25); it's only
+   acceptable when paired with a probe good enough to converge early.
+4. **Coarse-to-fine won nothing here** — expected in hindsight: these targets
+   are in-basis by construction, so the coefficient tail carries little. It
+   may still matter for out-of-span real voices (Dale); the basis-refit
+   benchmark will tell.
+
+**Adopted:** search probe → Rainbow-Passage opener, PATIENCE → 25, in both
+`refine.rs` and `RefineEngine.kt`. Honest cost note: the rich probe is ~2.5×
+the short probe's audio length, so phone runs get proportionally slower per
+evaluation than the short-probe build — still far faster than the original
+full-fidelity loop, and worth +0.06 held-out.
 
 ## 2026-08-11 — VCTK inversion night on brainiac-nvidia GPU 1 (🔄)
 
