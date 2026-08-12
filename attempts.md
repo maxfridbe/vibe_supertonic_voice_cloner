@@ -275,6 +275,37 @@ variant.
 qwen_spk_encoder.onnx, so the on-device loop can converge on this metric);
 character-voice benchmark set; qwen-loss inversion nights.
 
+## 2026-08-12 — Full-stack Dale on S24: seed-choice lesson (✅)
+
+**Tried:** end-to-end clone with everything new (2048×4 ECAPA head seed via
+desktop clonevoice + VCTK basis + rich probe) on the S24: 0.25 → 0.53.
+Morning's run with the same phone but seeded from the curated `Dale.json`
+(previously refined style): 0.51 → 0.65.
+
+**Lesson:** the test conflated "new head" with "replaced a good seed." A raw
+encoder guess on an out-of-domain character voice (0.25 — though better than
+the old head's ~0.1–0.2 on Dale) loses to a curated seed (0.51), and the
+refine can't fully recover the difference. Keep seeding from the best
+available style when one exists (the app's normal flow does). Character
+voices stay the encoder path's blind spot under the ECAPA referee — the
+overnight qwen-first program targets exactly this.
+
+## 2026-08-12 — Qwen-first overnight program (🔄)
+
+Running on brainiac: (A ✅) 4,000 manufactured (audio, coeff) pairs in the
+merged k=384 basis — the qwen path's first manufactured supervision (ECAPA
+always had ~1,200; qwen had 0); (B 🔄) qwen features for all 4,000, two
+parallel extractors on GPU 0; (C queued) six qwen-head configs — ±extra
+pairs, ±PCA-256 front, capacity retests at 1024/2048 — each scored under both
+referees, two parallel lanes; (E 🔄, GPU 1) **qwen-scored refine** prototype:
+10 voices searched against centered-qwen cosine via qwen_spk_encoder.onnx,
+finals scored in both spaces — the go/no-go for porting the qwen objective
+into the app's RefineEngine.
+
+**Ops lesson (twice-burned):** `pkill -f <script>` inside an ssh one-liner
+matches the ssh command line itself and kills its own shell — use
+`[c]haracter-class` patterns or skip pkill.
+
 ## 📋 Planned next
 
 - **Pick winner config** from the sweep → update Kotlin `RefineEngine` +
