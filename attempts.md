@@ -131,9 +131,27 @@ experiment queued). Product note: worth exposing quick (short-probe) vs best
 label cos 0.59–0.90). New k=384 basis via checked-in `make_basis.py` from
 pairs_p1 + LibriSpeech aux ×6 + VCTK aux ×11: **97.5 % variance (was 96.1 %)**.
 
-**Running:** old-vs-new basis benchmark — 4 real voices (Dale, Fireside,
-Soothing, Stephen Fry), shipping config, both GPUs, incl. per-voice ceiling
-projections.
+**Findings (✅, old-vs-new benchmark complete):** 4 real voices, shipping
+config, both GPUs:
+
+| voice (held-out) | old basis | VCTK basis | ceiling old→new |
+|---|---|---|---|
+| Dale | 0.757 | 0.750 | 0.49 → 0.54 |
+| Fireside Narrator | 0.797 | 0.793 | 0.43 → 0.51 |
+| Soothing | 0.824 | **0.837** | 0.55 → 0.60 |
+| Stephen Fry | 0.759 | **0.769** | 0.50 → 0.55 |
+
+1. Final refined quality is a wash (+0.003 mean) — the search compensates for
+   the old basis on these voices.
+2. The new basis wins everywhere else: ceilings +0.05–0.08 on all four,
+   starts +0.03–0.09 (direct encoder-path benefit), convergence ~25% faster.
+3. **Retro-finding:** the *old* basis under the rich probe scored 0.757 on
+   Dale vs the historical 0.716 — much of what looked like a basis ceiling
+   yesterday was actually the short probe. The probe win compounds.
+
+**Shipped:** `models/style_basis.bin` replaced with the VCTK-extended fit
+(97.5 % variance, same k=384 byte layout, drop-in — the encoder head emits
+styles, not coefficients).
 
 ## 📋 Planned next
 
