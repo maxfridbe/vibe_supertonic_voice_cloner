@@ -9,7 +9,17 @@ use ort::value::Tensor;
 use std::path::Path;
 use unicode_normalization::UnicodeNormalization;
 
+/// Full-fidelity probe, used only to score the seed and the final winner.
 const PROBE: &str = "A cup of coffee on the desk had long since gone cold.";
+/// Search-time probe: ECAPA identity saturates in a couple of seconds, so the
+/// 2,400 throwaway ranking syntheses don't need the long sentence.
+const PROBE_SEARCH: &str = "The coffee on the desk had gone cold.";
+/// Flow steps during search vs. final scoring: ranking candidates doesn't need
+/// render quality.
+const SEARCH_STEPS: usize = 4;
+const FINAL_STEPS: usize = 8;
+/// Stop when the best cosine hasn't improved for this many generations.
+const PATIENCE: usize = 15;
 const RATE: u32 = 16_000;
 
 type Err = Box<dyn std::error::Error>;
@@ -113,52 +123,72 @@ impl Synth {
             .collect()
     }
 
-    /// One probe synthesis -> f32 PCM at self.sr.
-    pub fn generate(&mut self, ids: &[i64], ttl: &[f32], dp: &[f32],
-                    steps: usize, speed: f32, rng: &mut Rng) -> Result<Vec<f32>, Err> {
+    /// Duration (seconds) the predictor assigns this text with this style_dp.
+    pub fn duration(&mut self, ids: &[i64], dp: &[f32], speed: f32) -> Result<f32, Err> {
         let len = ids.len() as i64;
         let mask = vec![1f32; ids.len()];
-        // duration
         let dout = self.dp.run(ort::inputs![
             "text_ids"  => Tensor::from_array(([1_i64, len], ids.to_vec()))?,
             "style_dp"  => Tensor::from_array(([1_i64, 8, 16], dp.to_vec()))?,
-            "text_mask" => Tensor::from_array(([1_i64, 1, len], mask.clone()))?
+            "text_mask" => Tensor::from_array(([1_i64, 1, len], mask))?
         ])?;
-        let duration = dout[0].try_extract_tensor::<f32>()?.1[0] / speed;
-        // text embedding
+        Ok(dout[0].try_extract_tensor::<f32>()?.1[0] / speed)
+    }
+
+    /// One probe synthesis -> f32 PCM at self.sr.
+    pub fn generate(&mut self, ids: &[i64], ttl: &[f32], dp: &[f32],
+                    steps: usize, speed: f32, rng: &mut Rng) -> Result<Vec<f32>, Err> {
+        let duration = self.duration(ids, dp, speed)?;
+        let wav_len = (duration * self.sr as f32) as i64;
+        let latent_len = ((wav_len + self.chunk - 1) / self.chunk).max(1);
+        let noise: Vec<f32> = (0..(self.l_dim * latent_len) as usize).map(|_| rng.gauss()).collect();
+        let mut wavs = self.generate_batch(ids, &[ttl], latent_len, wav_len, &noise, steps)?;
+        Ok(wavs.remove(0))
+    }
+
+    /// The search-time hot path: B candidate styles through the text encoder,
+    /// flow and vocoder as one batch (the graphs have a dynamic batch dim),
+    /// with a frozen latent length and shared noise — common random numbers
+    /// keep candidates comparable within a generation.
+    pub fn generate_batch(&mut self, ids: &[i64], ttls: &[&[f32]], latent_len: i64,
+                          wav_len: i64, noise: &[f32], steps: usize) -> Result<Vec<Vec<f32>>, Err> {
+        let bn = ttls.len();
+        let (b, len) = (bn as i64, ids.len() as i64);
+        let ids_b: Vec<i64> = ids.iter().cycle().take(ids.len() * bn).copied().collect();
+        let mask_b = vec![1f32; ids.len() * bn];
+        let ttl_b: Vec<f32> = ttls.iter().flat_map(|t| t.iter().copied()).collect();
         let eout = self.text_enc.run(ort::inputs![
-            "text_ids"  => Tensor::from_array(([1_i64, len], ids.to_vec()))?,
-            "style_ttl" => Tensor::from_array(([1_i64, 50, 256], ttl.to_vec()))?,
-            "text_mask" => Tensor::from_array(([1_i64, 1, len], mask.clone()))?
+            "text_ids"  => Tensor::from_array(([b, len], ids_b))?,
+            "style_ttl" => Tensor::from_array(([b, 50, 256], ttl_b.clone()))?,
+            "text_mask" => Tensor::from_array(([b, 1, len], mask_b.clone()))?
         ])?;
         let (te_shape, te_slice) = eout[0].try_extract_tensor::<f32>()?;
         let te: Vec<f32> = te_slice.to_vec();
         let te_dims: Vec<i64> = te_shape.iter().map(|&x| x as i64).collect();
 
-        let wav_len = (duration * self.sr as f32) as i64;
-        let latent_len = ((wav_len + self.chunk - 1) / self.chunk).max(1);
         let ld = self.l_dim;
-        let mut xt: Vec<f32> = (0..(ld * latent_len) as usize).map(|_| rng.gauss()).collect();
-        let lat_mask = vec![1f32; latent_len as usize];
-
+        let per = (ld * latent_len) as usize;
+        let mut xt: Vec<f32> = (0..bn).flat_map(|_| noise[..per].iter().copied()).collect();
+        let lat_mask = vec![1f32; latent_len as usize * bn];
         for step in 0..steps {
             let out = self.vec_est.run(ort::inputs![
-                "noisy_latent" => Tensor::from_array(([1_i64, ld, latent_len], xt.clone()))?,
+                "noisy_latent" => Tensor::from_array(([b, ld, latent_len], xt))?,
                 "text_emb"     => Tensor::from_array((te_dims.clone(), te.clone()))?,
-                "style_ttl"    => Tensor::from_array(([1_i64, 50, 256], ttl.to_vec()))?,
-                "text_mask"    => Tensor::from_array(([1_i64, 1, len], mask.clone()))?,
-                "latent_mask"  => Tensor::from_array(([1_i64, 1, latent_len], lat_mask.clone()))?,
-                "current_step" => Tensor::from_array(([1_i64], vec![step as f32]))?,
-                "total_step"   => Tensor::from_array(([1_i64], vec![steps as f32]))?
+                "style_ttl"    => Tensor::from_array(([b, 50, 256], ttl_b.clone()))?,
+                "text_mask"    => Tensor::from_array(([b, 1, len], mask_b.clone()))?,
+                "latent_mask"  => Tensor::from_array(([b, 1, latent_len], lat_mask.clone()))?,
+                "current_step" => Tensor::from_array(([b], vec![step as f32; bn]))?,
+                "total_step"   => Tensor::from_array(([b], vec![steps as f32; bn]))?
             ])?;
             xt = out[0].try_extract_tensor::<f32>()?.1.to_vec();
         }
         let vout = self.vocoder.run(ort::inputs![
-            "latent" => Tensor::from_array(([1_i64, ld, latent_len], xt.clone()))?
+            "latent" => Tensor::from_array(([b, ld, latent_len], xt))?
         ])?;
-        let wav = vout[0].try_extract_tensor::<f32>()?.1.to_vec();
-        let n = (wav.len() as i64).min(wav_len.max(1)) as usize;
-        Ok(wav[..n].to_vec())
+        let (_, wav_all) = vout[0].try_extract_tensor::<f32>()?;
+        let row = wav_all.len() / bn;
+        let n = row.min(wav_len.max(1) as usize);
+        Ok((0..bn).map(|p| wav_all[p * row..p * row + n].to_vec()).collect())
     }
 }
 
@@ -219,8 +249,8 @@ impl Rng {
     }
 }
 
-fn sep_cma<F: FnMut(&[f32]) -> f32>(x0: &[f32], sigma0: f32, iters: usize, pop: usize,
-                                    mut f: F, rng: &mut Rng) -> Vec<f32> {
+fn sep_cma<F: FnMut(&[Vec<f32>]) -> Vec<f32>>(x0: &[f32], sigma0: f32, iters: usize, pop: usize,
+                                              mut f: F, rng: &mut Rng) -> Vec<f32> {
     let n = x0.len();
     let mu = pop / 2;
     let mut w: Vec<f32> = (0..mu).map(|i| ((mu as f32 + 0.5).ln()) - ((i + 1) as f32).ln()).collect();
@@ -240,15 +270,17 @@ fn sep_cma<F: FnMut(&[f32]) -> f32>(x0: &[f32], sigma0: f32, iters: usize, pop: 
     let mut ps = vec![0f32; n];
     let mut pc = vec![0f32; n];
     let mut best_x = x0.to_vec();
-    let mut best_f = f(x0);
+    let mut best_f = f(&[x0.to_vec()])[0];
+    let mut last_gain = 0usize;
 
     for g in 0..iters {
         let z: Vec<Vec<f32>> = (0..pop).map(|_| (0..n).map(|_| rng.gauss()).collect()).collect();
         let x: Vec<Vec<f32>> = (0..pop).map(|p| (0..n)
             .map(|j| (m[j] + sigma * cvec[j].sqrt() * z[p][j]).clamp(-3.0, 3.0)).collect()).collect();
-        let scores: Vec<f32> = (0..pop).map(|p| f(&x[p])).collect();
+        let scores = f(&x);
         let mut order: Vec<usize> = (0..pop).collect();
         order.sort_by(|&a, &b| scores[a].partial_cmp(&scores[b]).unwrap());
+        if scores[order[0]] < best_f - 1e-4 { last_gain = g; }
         if scores[order[0]] < best_f { best_f = scores[order[0]]; best_x = x[order[0]].clone(); }
         let mut zmean = vec![0f32; n];
         let mut new_m = vec![0f32; n];
@@ -269,6 +301,10 @@ fn sep_cma<F: FnMut(&[f32]) -> f32>(x0: &[f32], sigma0: f32, iters: usize, pop: 
             cvec[j] = ((1.0 - c1 - cmu) * cvec[j] + c1 * pc[j] * pc[j] + cmu * cmu_term).max(1e-8);
         }
         eprintln!("  gen {}/{}: best cosine so far {:.3}", g + 1, iters, -best_f);
+        if g - last_gain >= PATIENCE {
+            eprintln!("  no improvement in {PATIENCE} generations; stopping early");
+            break;
+        }
     }
     best_x
 }
@@ -281,22 +317,55 @@ pub struct Refined { pub ttl: Vec<f32>, pub dp: Vec<f32>, pub start_cos: f32, pu
 /// mutably without fighting the borrow checker over separate pieces.
 struct Eval {
     basis: Basis, synth: Synth, spk: Session,
-    target: Vec<f32>, probe_ids: Vec<i64>, rng: Rng, evals: usize,
+    target: Vec<f32>, probe_final: Vec<i64>, probe_search: Vec<i64>,
+    latent_len: i64, wav_len: i64, noise: Vec<f32>, batched: bool,
+    rng: Rng, evals: usize,
 }
 impl Eval {
-    fn cosine(&mut self, c: &[f32]) -> f32 {
-        let (ttl, dp) = self.basis.decode(c);
-        let wav = match self.synth.generate(&self.probe_ids, &ttl, &dp, 8, 1.05, &mut self.rng) {
-            Ok(w) => w, Err(_) => return -1.0,
-        };
-        let w16 = resample_to_16k(&wav, self.synth.sr);
-        let emb = match embed(&mut self.spk, &w16) { Ok(e) => e, Err(_) => return -1.0 };
-        emb.iter().zip(&self.target).map(|(a, b)| a * b).sum()
+    fn score(&mut self, wav: &[f32]) -> f32 {
+        let w16 = resample_to_16k(wav, self.synth.sr);
+        match embed(&mut self.spk, &w16) {
+            Ok(e) => e.iter().zip(&self.target).map(|(a, b)| a * b).sum(),
+            Err(_) => -1.0,
+        }
     }
-    fn objective(&mut self, c: &[f32]) -> f32 {
-        self.evals += 1;
-        let l2: f32 = c.iter().map(|v| v * v).sum();
-        -(self.cosine(c) - 0.02 * l2 / c.len() as f32)
+
+    /// Full-fidelity cosine (long probe, all flow steps, fresh duration) —
+    /// used only for the seed and the final winner, so start/end numbers stay
+    /// comparable to earlier runs.
+    fn cosine_final(&mut self, c: &[f32]) -> f32 {
+        let (ttl, dp) = self.basis.decode(c);
+        match self.synth.generate(&self.probe_final, &ttl, &dp, FINAL_STEPS, 1.05, &mut self.rng) {
+            Ok(w) => self.score(&w), Err(_) => -1.0,
+        }
+    }
+
+    /// Search objective for a whole population: short probe, SEARCH_STEPS flow
+    /// steps, frozen duration, shared noise, one batched pass through the
+    /// synth. Returns per-candidate scores (negated cosine + L2, lower=better).
+    fn objective_batch(&mut self, xs: &[Vec<f32>]) -> Vec<f32> {
+        self.evals += xs.len();
+        let decoded: Vec<Vec<f32>> = xs.iter().map(|c| self.basis.decode(c).0).collect();
+        let ttls: Vec<&[f32]> = decoded.iter().map(|v| v.as_slice()).collect();
+        let batched = if self.batched {
+            match self.synth.generate_batch(&self.probe_search, &ttls, self.latent_len,
+                                            self.wav_len, &self.noise, SEARCH_STEPS) {
+                Ok(w) => Some(w),
+                Err(e) => {
+                    eprintln!("  batched synthesis failed ({e}); falling back to per-candidate");
+                    self.batched = false; None
+                }
+            }
+        } else { None };
+        let wavs = batched.unwrap_or_else(|| ttls.iter().map(|t|
+            self.synth.generate_batch(&self.probe_search, &[*t], self.latent_len,
+                                      self.wav_len, &self.noise, SEARCH_STEPS)
+                .map(|mut w| w.remove(0)).unwrap_or_default()).collect());
+        xs.iter().zip(&wavs).map(|(c, wav)| {
+            let cos = if wav.is_empty() { -1.0 } else { self.score(wav) };
+            let l2: f32 = c.iter().map(|v| v * v).sum();
+            -(cos - 0.02 * l2 / c.len() as f32)
+        }).collect()
     }
 }
 
@@ -307,17 +376,31 @@ pub fn refine(supertonic_dir: &Path, models_dir: &Path, ref_wav16k: &[f32],
     let mut synth = Synth::load(supertonic_dir)?;
     let mut spk = Session::builder()?.commit_from_file(models_dir.join("spk_encoder.onnx"))?;
     let target = embed(&mut spk, ref_wav16k)?;
-    let probe_ids = synth.ids(PROBE);
+    let probe_final = synth.ids(PROBE);
+    let probe_search = synth.ids(PROBE_SEARCH);
     let x0 = basis.encode(seed_ttl, seed_dp);
     let k = basis.k;
 
-    let mut ev = Eval { basis, synth, spk, target, probe_ids, rng: Rng::new(1234567), evals: 0 };
-    let start_cos = ev.cosine(&x0);
-    eprintln!("start cosine {:.3}; searching k={} basis, {} gens x {} pop", start_cos, k, iters, pop);
+    // Freeze the search probe's duration from the encoder seed: style_dp only
+    // sets the duration scalar, and a fixed latent length is what lets a whole
+    // generation run as one batch and share one noise tensor (common random
+    // numbers — a deterministic objective the optimizer can trust).
+    let mut rng = Rng::new(1234567);
+    let duration = synth.duration(&probe_search, seed_dp, 1.05)?;
+    let wav_len = (duration * synth.sr as f32) as i64;
+    let latent_len = ((wav_len + synth.chunk - 1) / synth.chunk).max(1);
+    let noise: Vec<f32> = (0..(synth.l_dim * latent_len) as usize).map(|_| rng.gauss()).collect();
+
+    let mut ev = Eval { basis, synth, spk, target, probe_final, probe_search,
+                        latent_len, wav_len, noise, batched: true, rng, evals: 0 };
+    let start_cos = ev.cosine_final(&x0);
+    eprintln!("start cosine {:.3}; searching k={} basis, {} gens x {} pop \
+               ({} flow steps, batched, patience {})",
+              start_cos, k, iters, pop, SEARCH_STEPS, PATIENCE);
 
     let mut cma_rng = Rng::new(987654321);
-    let best = sep_cma(&x0, 0.35, iters, pop, |c| ev.objective(c), &mut cma_rng);
-    let end_cos = ev.cosine(&best);
+    let best = sep_cma(&x0, 0.35, iters, pop, |xs| ev.objective_batch(xs), &mut cma_rng);
+    let end_cos = ev.cosine_final(&best);
     let (ttl, dp) = if end_cos >= start_cos { ev.basis.decode(&best) } else { ev.basis.decode(&x0) };
     Ok(Refined { ttl, dp, start_cos, end_cos, evals: ev.evals })
 }

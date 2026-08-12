@@ -41,6 +41,26 @@ these as the reference implementation, not a turnkey `make`.
    This exact loop is ported to Kotlin in the Android app. Raising `--k`
    (e.g. 384) searches a bigger basis and lifts several voices past 0.8.
 
+## Rebuilding `style_basis.bin` — what the repo does and doesn't contain
+
+The repo has all the **code** to produce the shipped k=384 basis but not the
+**data** it was fit on. `export_k384.py` fits `StyleBasis` (SVD, from
+`train_encoder.py` — in this repo) over two style archives that live on the
+training workstation (brainiac-nvidia, `~/supertonic-experiment/`):
+
+- `clone_out/pairs_p1.npz` — the manufactured style pairs (`gen_style_pairs2.py` output)
+- `clone_out/overnight/inversions/aux_pairs.npz` — the inverted real-speaker styles (`invert_corpus.py` output)
+
+and writes the seven-int32-header binary the phone reads (`export_basis.py`'s
+docstring documents the byte layout; it exports the same thing from a trained
+head checkpoint, `trans_ecapa*.pt`, also not in the repo). Regenerating those
+archives from scratch additionally needs the frozen Supertonic 3 + `DiffSynth`
+wrapper, PyTorch/CUDA, and a speech corpus — the run.sh recipe. So: to
+re-export the .bin, copy the two `.npz` archives (or the head checkpoint) from
+brainiac-nvidia; to re-fit it from nothing, you need the full workstation
+setup. The shipped `../models/style_basis.bin` is the k=384 artifact itself,
+so nothing needs rebuilding to *use* the repo.
+
 ## Evaluation
 
 - **`eval_style.py`** / **`eval_encoder_real.py`** — held-out speaker cosine on

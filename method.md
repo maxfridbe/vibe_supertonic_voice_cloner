@@ -137,6 +137,78 @@ search on the same budget. Beyond the basis, only the desktop gradient
 inversion (unconstrained, autograd + GPU) does better — which is why that stays
 a desktop step.
 
+## Making it faster
+
+Refine cost = evaluations × cost per evaluation, and in the original loop every
+one of the ~2,400 evaluations paid final-render quality — full sentence, all 8
+flow steps, one at a time — even though almost all of them exist only to be
+*ranked* and thrown away. The levers, in the order they pay off:
+
+### In `clonevoice` now (no retraining)
+
+1. **Reduced search fidelity.** Ranking doesn't need render quality: the search
+   synthesises a ~2 s probe at 4 flow steps; only the seed and the final winner
+   are scored at full fidelity (long probe, 8 steps), so the reported start/end
+   cosines stay comparable to earlier runs.
+2. **Frozen duration → batched population.** `style_dp` only sets the probe's
+   duration scalar, so it's frozen from the encoder seed. With a fixed latent
+   length every candidate has identical tensor shapes, and a whole CMA
+   generation runs through the text encoder, flow and vocoder as **one batched
+   forward pass** (the graphs have a dynamic batch dim; that's also what makes
+   GPU/NNAPI delegates worth attaching on the phone). Falls back to
+   per-candidate synthesis if a graph rejects the batch.
+3. **Common random numbers.** One noise tensor is drawn per run and shared by
+   every candidate, instead of fresh noise per synthesis. The objective becomes
+   deterministic, so the optimizer stops spending generations averaging out
+   noise it created itself.
+4. **Early stopping.** No best-cosine improvement for 15 generations ends the
+   run instead of always spending the full budget.
+
+These stack multiplicatively. Measured on an identical 49-evaluation budget
+(desktop CPU): **64.1 s → 16.1 s end-to-end (4×)**; net of the fixed overhead
+both runs share (model load + the two full-fidelity scorings), the search loop
+itself went from ~1.1 s to ~0.13 s per evaluation (**~8×**). A full 120×20
+refine drops from ~45 min to ~5 min on the same desktop — with zero model
+changes.
+
+Measured on a phone (Galaxy S24 FE, CPU, same Dale reference, same 120×20
+budget, ported to the app's Kotlin `RefineEngine`): the old loop ran ~2.5 s per
+evaluation (projected ~93 min for the full budget); the new one ran ~0.83 s per
+evaluation (**~3× per eval** — batching buys less on mobile than desktop) and
+the early stop ended the run at generation 65 of 120, for **18.5 min wall
+against the old ~93 min: ~5× end-to-end**, scoring 0.50 → 0.62 held-out with
+the batched path active throughout.
+
+### Next, still search-side
+
+5. **Coarse-to-fine over the basis.** The search currently treats all 384
+   coefficients equally from generation 1, but the PCA spectrum says the first
+   ~128 carry ~90 % of the variance (and the basis file already stores
+   per-coefficient scales). Searching the head of the spectrum first, then
+   unfreezing the tail with small sigma, should converge faster *and* is the
+   likely fix for the one benchmark voice that regressed at k=384 — a wider
+   space searched isotropically on the same budget.
+
+### Needing a training run (brainiac-nvidia)
+
+6. **Score in latent space.** Distill vocoder + ECAPA into a small head that
+   maps the flow's output latent straight to an embedding — the training pairs
+   are free to manufacture (synthesise, keep `(latent, ECAPA-of-audio)`). The
+   two heaviest models leave the hot loop; only each generation's best gets
+   truly vocoded.
+7. **Surrogate-assisted CMA** (lq-CMA-ES): fit a cheap ranking surrogate on the
+   coefficients already evaluated this run and only true-evaluate promising
+   candidates — typically 3–5× fewer real evaluations at this dimensionality.
+8. **Amortize the search away.** Every finished refine run is a free training
+   pair: `(target embedding, seed coefficients) → refined coefficients`. A
+   "refiner head" trained on accumulated runs applies the correction in one
+   forward pass, raising the *starting* cosine so each user needs less search —
+   the corrections flowing back into the guesser. This is the structural one:
+   it makes the product better permanently, not one run faster.
+9. **Few-step flow distillation** — a consistency-distilled 1–2 step vector
+   estimator for search-time synthesis, keeping the 8-step model for the final
+   render. Heaviest training effort, so last.
+
 ## Models in play
 
 | File | Used in step | Role | Shapes |

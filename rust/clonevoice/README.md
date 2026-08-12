@@ -50,6 +50,14 @@ runs in the background. It needs the Supertonic graphs:
 ```
 
 Each generation prints the best cosine so far. The full budget (iters 120 ×
-pop 20 ≈ 2400 evaluations) reaches 0.80–0.83 held-out on many voices; a small
-budget (`--iters 4 --pop 8`) is a quick smoke test. Everything is forward passes
-— no autograd, no GPU.
+pop 20 ≈ 2400 evaluations) reaches ~0.72–0.83 held-out; a small budget
+(`--iters 4 --pop 8`) is a quick smoke test. Everything is forward passes — no
+autograd, no GPU.
+
+The search runs at reduced fidelity (short probe, 4 flow steps, each generation
+synthesised as one batched pass with a frozen duration and shared noise) and
+stops early after 15 generations without improvement; only the seed and the
+final winner are scored at full fidelity, so the printed start/end cosines stay
+comparable to older runs. Measured: ~8× faster per evaluation than the
+unbatched full-fidelity loop (~5 min instead of ~45 min for the full budget on
+a desktop CPU). See "Making it faster" in [../../method.md](../../method.md).
