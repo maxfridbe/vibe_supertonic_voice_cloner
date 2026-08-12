@@ -34,14 +34,15 @@ from train_encoder import StyleBasis  # noqa: E402
 
 
 class Head(nn.Module):
-    def __init__(self, in_dim, k, hidden=512, dropout=0.0):
+    def __init__(self, in_dim, k, hidden=512, dropout=0.0, depth=2):
         super().__init__()
         self.norm = nn.LayerNorm(in_dim)
-        self.net = nn.Sequential(
-            nn.Linear(in_dim, hidden), nn.SiLU(), nn.Dropout(dropout),
-            nn.Linear(hidden, hidden), nn.SiLU(), nn.Dropout(dropout),
-            nn.Linear(hidden, k),
-        )
+        layers, d = [], in_dim
+        for _ in range(depth):
+            layers += [nn.Linear(d, hidden), nn.SiLU(), nn.Dropout(dropout)]
+            d = hidden
+        layers.append(nn.Linear(d, k))
+        self.net = nn.Sequential(*layers)
         nn.init.zeros_(self.net[-1].weight)
         nn.init.zeros_(self.net[-1].bias)
 
@@ -71,6 +72,9 @@ def main():
                     help="project features to this many dims first; a 2048-d input "
                          "on 145 pairs memorises instead of learning")
     ap.add_argument("--dropout", type=float, default=0.0)
+    ap.add_argument("--hidden", type=int, default=512)
+    ap.add_argument("--depth", type=int, default=2,
+                    help="hidden layers; with --hidden this is the capacity sweep knob")
     ap.add_argument("--feat-noise", type=float, default=0.0,
                     help="gaussian feature noise during training, in units of "
                          "per-dim std — cheap augmentation for tiny pair counts")
@@ -148,7 +152,10 @@ def main():
     WT = torch.cat([W[ti], torch.full((len(Xe),), 0.5, device=dev)]) if Xe is not None else W[ti]
     feat_std = XT.std(0).clamp(min=1e-4)
 
-    head = Head(X.shape[1], basis.k, dropout=args.dropout).to(dev)
+    head = Head(X.shape[1], basis.k, hidden=args.hidden, dropout=args.dropout,
+                depth=args.depth).to(dev)
+    n_par = sum(p.numel() for p in head.parameters())
+    print(f"head: hidden={args.hidden} depth={args.depth} ({n_par/1e6:.1f}M params)")
     opt = torch.optim.AdamW(head.parameters(), lr=args.lr, weight_decay=1e-3)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=args.steps)
     best = (1e9, None)
@@ -174,7 +181,7 @@ def main():
     head.load_state_dict(best[1])
     head.eval()
     torch.save({"model": head.state_dict(), "k": basis.k, "in_dim": X.shape[1],
-                "dropout": args.dropout,
+                "dropout": args.dropout, "hidden": args.hidden, "depth": args.depth,
                 "pca_mean": None if pca_mean is None else pca_mean.astype(np.float32),
                 "pca_comp": None if pca_comp is None else pca_comp.astype(np.float32),
                 "basis": basis.basis.cpu(), "mean": basis.mean.cpu(),

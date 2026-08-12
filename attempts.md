@@ -183,6 +183,46 @@ static+surgered graphs are the input for route 2. NNAPI stays opt-in
 GPU delegate (real OpenCL/Vulkan, no NNAPI HAL in the middle); or QNN EP
 direct on Snapdragon. The Split→Slice + static-shape work carries over.
 
+## 2026-08-12 — GPU route 2 opened and parked (🅿)
+
+**Tried:** onnx2tf conversion of the static graphs to LiteRT. text_encoder
+converted only after onnxsim pre-folding, and the produced flatbuffer is
+**invalid** (XNNPACK reshape prepare failure; a 5-D tensor with a 4-element
+transpose perm) — per-op replacement-JSON debugging required, on the easiest
+graph. Parked by decision: improve quality numbers first, revisit
+acceleration when there's something worth speeding up. Noted for later:
+`onnxruntime-android-qnn` 1.29.0 exists on Maven and consumes our
+static+surgered ONNX directly — likely the cheaper path than converter
+archaeology when we return.
+
+## 2026-08-12 — Translation-head capacity sweep (✅)
+
+**Question (user's):** would a bigger embedding→style head (9 MB → 100 MB)
+learn the inversion mapping better?
+
+**Setup:** 307 real pairs (198 LibriSpeech + 109 fresh VCTK inversions),
+targets in the new k=384 basis, ECAPA 192-d input, dropout 0.1 + feat-noise
+0.1, same val split (46 refs; 43 scored), judged by synthesize→embed→cosine
+(`score_styles.py`).
+
+| head | params | val MSE | held-out audio cos |
+|---|---|---|---|
+| 512×2 (shipped arch) | 0.4M | 2.305 | 0.446 |
+| 1024×3 | 2.5M | 2.368 | 0.481 |
+| **2048×4** | **13M** | 2.487 | **0.494** |
+| 4096×4 | 55M | *2.210 best* | *0.317 worst* |
+
+1. **The shipped head is undersized**: ~13M params buys +0.048 held-out audio
+   cosine. The user's intuition was right up to that scale.
+2. **The 100 MB class collapses** (overfits 307 noisy pairs), despite the
+   *best* coefficient MSE —
+3. — confirming coefficient MSE and audio quality are uncorrelated across
+   capacities; only the audio score ranks runs.
+
+**Next:** export the 2048×4 head as the new `style_encoder.onnx` (needs
+`export_cloner.py` to honor hidden/depth), and repeat with Qwen features
+(extract on VCTK refs first) for the qwen-variant answer.
+
 ## 📋 Planned next
 
 - **Pick winner config** from the sweep → update Kotlin `RefineEngine` +
