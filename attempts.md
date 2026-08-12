@@ -240,6 +240,41 @@ that Qwen features earn their keep on *character* voices, which this
 benchmark contains none of. Verdict: don't grow the qwen head on current
 data; grow the *dataset* (or add a PCA front) first.
 
+## 2026-08-12 — Qwen-space similarity metric + referee flip (✅)
+
+**Direction change (user):** focus the Qwen path; the ECAPA-path output is
+judged useless by ear. Idea: converge training on a *Qwen* similarity metric.
+
+**Metric built** (`python/qwen_similarity.py`): cosine over mean-centered Qwen
+speaker features. Raw features share a dominant common component (different
+speakers cosine at 0.942!); after centering on the reference population:
+same-speaker 0.836 ± 0.061 vs different-speaker −0.005 ± 0.270, **d′ 4.30,
+4.1 % err** on 61 half-vs-half reference pairs — a valid, well-scaled metric.
+
+**Referee flip, measured** (same synthesized eval audio, two judges):
+
+| head | ECAPA cos | centered Qwen cos |
+|---|---|---|
+| **Qwen 512×2** | 0.426 (5th) | **0.369 (1st)** |
+| ECAPA 2048×4 | **0.494 (1st)** | 0.308 (2nd) |
+| Qwen 2048×4 | 0.344 | 0.303 |
+| ECAPA 1024×3 / 512×2 | 0.481 / 0.446 | 0.264 / 0.236 |
+| ECAPA 4096×4 | 0.317 | 0.149 |
+
+Each analyzer's head wins under its own referee — quantified referee bias.
+Capacity conclusions survive the flip (55M collapses under both; growing the
+qwen head still doesn't pay). Under the ear-aligned judge, **q512×2 is the
+best head produced today**.
+
+**Shipped:** `models/style_encoder_qwen.onnx` (26 MB) — the q512×2 head
+(new k=384 VCTK basis, LS+VCTK training) exported for the app's qwen analyzer
+variant.
+
+**Next for qwen-first:** select head checkpoints by centered-qwen audio score
+(not coeff MSE); a qwen-scored refine option (the app already ships
+qwen_spk_encoder.onnx, so the on-device loop can converge on this metric);
+character-voice benchmark set; qwen-loss inversion nights.
+
 ## 📋 Planned next
 
 - **Pick winner config** from the sweep → update Kotlin `RefineEngine` +
