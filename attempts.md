@@ -111,6 +111,30 @@ basis exactly: 96.1 % variance at k=384, byte-count-identical output
 (19,910,684 B), round-trip err 1e-5. This is now the canonical path for the
 VCTK-extended refit.
 
+## 2026-08-12 — Winner config on real phones, Dale (✅)
+
+**Tried:** the adopted config (rich probe + patience 25) end-to-end on two
+phones, same Dale reference, 120×20 budget.
+
+**Findings:** Galaxy S24 FE (Exynos 2400e): 0.44 → **0.68** in 78.5 min.
+Galaxy S24 (Snapdragon 8 Gen 3): 0.51 → **0.65** in 85.4 min. vs yesterday's
+short-probe build on the FE: 0.62 in 18.5 min. The sweep's predicted ~+0.06
+held-out gain transfers to a real out-of-basis voice; cost is ~4× wall (longer
+probe audio + patience using the full budget). Snapdragon ≈ Exynos on the CPU
+path — chip-agnostic, so further speed must come from GPU delegation (route-1
+experiment queued). Product note: worth exposing quick (short-probe) vs best
+(rich-probe) refine modes until the GPU work lands.
+
+## 2026-08-12 — VCTK basis refit (🔄)
+
+**Done:** 109/110 VCTK speakers inverted overnight on the 3060 (~8.4 min each,
+label cos 0.59–0.90). New k=384 basis via checked-in `make_basis.py` from
+pairs_p1 + LibriSpeech aux ×6 + VCTK aux ×11: **97.5 % variance (was 96.1 %)**.
+
+**Running:** old-vs-new basis benchmark — 4 real voices (Dale, Fireside,
+Soothing, Stephen Fry), shipping config, both GPUs, incl. per-voice ceiling
+projections.
+
 ## 📋 Planned next
 
 - **Pick winner config** from the sweep → update Kotlin `RefineEngine` +
