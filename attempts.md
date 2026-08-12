@@ -306,6 +306,42 @@ into the app's RefineEngine.
 matches the ssh command line itself and kills its own shell — use
 `[c]haracter-class` patterns or skip pkill.
 
+## 2026-08-12 — Qwen-first night program: results (✅)
+
+All metrics are **centered qwen cosine only** (per direction; ECAPA retired).
+**Goal line calibrated first**: 40 desktop-inverted styles re-scored under the
+qwen metric = **0.4905** — the qwen-space equivalent of the old "~0.82 ECAPA."
+
+**Head program** (6 configs, 297 real + 4,000 manufactured qwen pairs):
+
+| config | qwen-cos |
+|---|---|
+| **ex512pca** (512×2, PCA-256 front, +pairs) | **0.5047 — above the goal line** |
+| ex1024pca | 0.4568 |
+| ex512 (+pairs, no PCA) | 0.4548 |
+| ex2048 | 0.4175 |
+| ex1024 | 0.3777 |
+| base512 (no pairs) | 0.3685 |
+
+Manufactured pairs: +0.086. PCA front on top: +0.050 more. Capacity: still
+never pays. **The instant encoder guess now exceeds the desktop inversions'
+own similarity** — shipped as `models/style_encoder_qwen.onnx` (24 MB,
+PCA + basis folded in) and deployed to the S24.
+
+**Qwen-scored refine** (18 voices, objective = centered qwen via
+qwen_spk_encoder.onnx): mean **0.840**, range 0.664–0.917 (grizzled-gus
+0.917, boomer-hank 0.909, frosty-fern 0.903); real voices avg 0.725 (Dale
+0.717, Fireside 0.800), generated voices avg 0.873. Every voice lands far
+above the 0.49 goal line. Ear-check demos rendered (deacon-gray,
+grizzled-gus A/B m4a) — Goodhart guard: the listen is the final judge.
+
+**Also banked:** 7,000 manufactured pairs with qwen features (3,000 extracted
+for the next round).
+
+**Ship list next:** port the qwen objective into the app's RefineEngine
+(embed probe with qwen_spk_encoder.onnx + centering); retrain-select heads by
+qwen audio score in-loop; character-voice reference set for the app voices.
+
 ## 📋 Planned next
 
 - **Pick winner config** from the sweep → update Kotlin `RefineEngine` +
