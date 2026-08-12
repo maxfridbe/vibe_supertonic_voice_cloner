@@ -41,25 +41,32 @@ these as the reference implementation, not a turnkey `make`.
    This exact loop is ported to Kotlin in the Android app. Raising `--k`
    (e.g. 384) searches a bigger basis and lifts several voices past 0.8.
 
-## Rebuilding `style_basis.bin` — what the repo does and doesn't contain
+## Rebuilding `style_basis.bin`
 
-The repo has all the **code** to produce the shipped k=384 basis but not the
-**data** it was fit on. `export_k384.py` fits `StyleBasis` (SVD, from
-`train_encoder.py` — in this repo) over two style archives that live on the
-training workstation (brainiac-nvidia, `~/supertonic-experiment/`):
+**`make_basis.py` is the canonical, portable way to produce the basis** — it
+needs only numpy, documents the full methodology in its docstring (flatten →
+balance → center → SVD → top-k, `scale = s/sqrt(N-1)`), takes generic inputs
+(`--npz` archives with ttl/dp arrays and/or `--styles-dir` of style JSONs),
+and writes the seven-int32-header binary the phone and `clonevoice` read
+(byte layout in `../models/README.md`). The shipped k=384 recipe:
 
-- `clone_out/pairs_p1.npz` — the manufactured style pairs (`gen_style_pairs2.py` output)
-- `clone_out/overnight/inversions/aux_pairs.npz` — the inverted real-speaker styles (`invert_corpus.py` output)
+```sh
+make_basis.py --npz pairs_p1.npz --npz inversions/aux_pairs.npz \
+              [--npz inversions_vctk/aux_pairs.npz] --balance --k 384 \
+              --out style_basis.bin
+```
 
-and writes the seven-int32-header binary the phone reads (`export_basis.py`'s
-docstring documents the byte layout; it exports the same thing from a trained
-head checkpoint, `trans_ecapa*.pt`, also not in the repo). Regenerating those
-archives from scratch additionally needs the frozen Supertonic 3 + `DiffSynth`
-wrapper, PyTorch/CUDA, and a speech corpus — the run.sh recipe. So: to
-re-export the .bin, copy the two `.npz` archives (or the head checkpoint) from
-brainiac-nvidia; to re-fit it from nothing, you need the full workstation
-setup. The shipped `../models/style_basis.bin` is the k=384 artifact itself,
-so nothing needs rebuilding to *use* the repo.
+(`export_k384.py` / `export_basis.py` are the original workstation-specific
+scripts it generalises, kept for provenance.)
+
+The repo has the code but not the **data**: the style archives live on the
+training workstation (brainiac-nvidia, `~/supertonic-experiment/clone_out/`) —
+`pairs_p1.npz` are manufactured pairs (`gen_style_pairs2.py`), the
+`aux_pairs.npz` archives are real-speaker inversions (`invert_corpus.py`).
+Regenerating *those* from scratch needs the frozen Supertonic 3 + `DiffSynth`
+wrapper, PyTorch/CUDA, and a speech corpus — the run.sh recipe. The shipped
+`../models/style_basis.bin` is the artifact itself, so nothing needs
+rebuilding to *use* the repo.
 
 ## Evaluation
 

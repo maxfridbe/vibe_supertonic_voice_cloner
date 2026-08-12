@@ -71,6 +71,20 @@ GPU 1 at ~56%/8.9 GB, first speakers inverting. Output:
 `clone_out/overnight/inversions_vctk/aux_pairs.npz` (~110 speakers, expected
 overnight).
 
+## 2026-08-12 — Generic, documented basis builder (✅)
+
+**Tried:** `python/make_basis.py` — portable (numpy-only) replacement for the
+workstation-hardcoded `export_k384.py`: documented methodology in the
+docstring (flatten → balance → center → SVD → top-k, scale = s/√(N−1)),
+generic inputs (`--npz` ttl/dp archives, `--styles-dir` of style JSONs),
+writes the 7-int32-header binary.
+
+**Findings:** refitting with the original inputs (1200 manufactured pairs +
+198 LibriSpeech-inversion styles, `--balance` → ×6) reproduces the shipped
+basis exactly: 96.1 % variance at k=384, byte-count-identical output
+(19,910,684 B), round-trip err 1e-5. This is now the canonical path for the
+VCTK-extended refit.
+
 ## 📋 Planned next
 
 - **Pick winner config** from the sweep → update Kotlin `RefineEngine` +
