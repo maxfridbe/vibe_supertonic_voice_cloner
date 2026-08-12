@@ -24,7 +24,10 @@ from export_cloner import inline_weights    # noqa: E402
 class TransStyleHead(nn.Module):
     def __init__(self, ck):
         super().__init__()
-        self.head = Head(int(ck["in_dim"]), int(ck["k"]), dropout=float(ck.get("dropout", 0.0)))
+        self.head = Head(int(ck["in_dim"]), int(ck["k"]),
+                         hidden=int(ck.get("hidden", 512)),
+                         dropout=float(ck.get("dropout", 0.0)),
+                         depth=int(ck.get("depth", 2)))
         self.head.load_state_dict(ck["model"])
         self.head.eval()
         self.ttl_shape = tuple(int(v) for v in ck["ttl_shape"])
