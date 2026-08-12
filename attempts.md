@@ -153,6 +153,36 @@ config, both GPUs:
 (97.5 % variance, same k=384 byte layout, drop-in — the encoder head emits
 styles, not coefficients).
 
+## 2026-08-12 — GPU route 1: static shapes + ORT NNAPI (✅ answered: dead end)
+
+**Tried:** the refine's frozen shapes make static graphs possible, so: fixed
+the three hot-loop graphs to batch 20 / 92 probe tokens / 128 mask-padded
+latent frames (`onnxruntime.tools.make_dynamic_shape_fixed`); app loads them
+as optional accelerator sessions with per-generation CPU fallback. Findings
+by step, on the Galaxy S24 (Snapdragon 8 Gen 3):
+
+1. Dynamic graphs + NNAPI: places nothing (the app already knew this).
+2. **Static graphs + NNAPI: real progress — the EP now tries to compile** and
+   dies on a builder bug (`AddNnapiSplit count [0] does not evenly divide
+   dimension`), identical on ORT 1.20 and 1.29 (bumped the app to 1.29).
+3. **Split→Slice graph surgery** (`split_to_slice.py`, 24 nodes rewritten,
+   bit-exact parity vs originals): sessions compile and run under NNAPI…
+4. …at **2.7× slower than plain CPU** (projected ~230 min vs 85 min): the
+   driver's placements + partition-boundary copies + NNAPI's reference-CPU
+   fallback lose to ORT's multithreaded CPU kernels.
+5. `USE_FP16 + CPU_DISABLED` flags (genuine accelerator partitions only,
+   fp16): still ~2.6× slower (~223 min). **ORT's NNAPI EP is a dead end for
+   these graphs.**
+
+**Kept:** the static-graph infrastructure (loader, mask-padded batch path,
+fallback) — it's exactly what any other accelerator backend needs, and the
+static+surgered graphs are the input for route 2. NNAPI stays opt-in
+(`backend=nnapi` extra), CPU remains the default.
+
+**Next for GPU:** route 2 — convert the static graphs to LiteRT and use its
+GPU delegate (real OpenCL/Vulkan, no NNAPI HAL in the middle); or QNN EP
+direct on Snapdragon. The Split→Slice + static-shape work carries over.
+
 ## 📋 Planned next
 
 - **Pick winner config** from the sweep → update Kotlin `RefineEngine` +
