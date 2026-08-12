@@ -219,9 +219,26 @@ targets in the new k=384 basis, ECAPA 192-d input, dropout 0.1 + feat-noise
 3. — confirming coefficient MSE and audio quality are uncorrelated across
    capacities; only the audio score ranks runs.
 
-**Next:** export the 2048×4 head as the new `style_encoder.onnx` (needs
-`export_cloner.py` to honor hidden/depth), and repeat with Qwen features
-(extract on VCTK refs first) for the qwen-variant answer.
+**Shipped:** the ECAPA 2048×4 head is the new `models/style_encoder.onnx`
+(75 MB fp32: 13M head + folded k=384 VCTK basis; smoke-tested through
+`clonevoice`). `export_translation.py` honors hidden/depth now.
+
+**Qwen variant (✅ answered):** extracted Qwen features for the 109 VCTK refs
+(via the audiobook-maker venv — `qwen_tts` lives there, not in the supertonic
+venv), merged with the 188 LibriSpeech features, same protocol:
+
+| head (input) | held-out audio cos |
+|---|---|
+| Qwen 512×2 | 0.426 |
+| Qwen 2048×4 | 0.344 |
+
+For the **qwen head, bigger hurts immediately**: the 2048-d input makes every
+layer ~10× wider than the ECAPA twin, so 13M-class capacity memorises 297
+pairs (the trainer's own `--pca` warning, confirmed). And ECAPA beats Qwen at
+every size on this corpus-speaker val set — consistent with the old finding
+that Qwen features earn their keep on *character* voices, which this
+benchmark contains none of. Verdict: don't grow the qwen head on current
+data; grow the *dataset* (or add a PCA front) first.
 
 ## 📋 Planned next
 
