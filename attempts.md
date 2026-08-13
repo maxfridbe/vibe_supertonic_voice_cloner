@@ -367,6 +367,34 @@ RefineService takes iters/pop extras.
 the fix is a data night inverting expressive/whispered recordings into the
 bank so the basis, head, and manufactured pairs all learn the class.
 
+## 2026-08-13 — Expressive bank + full retrain (✅)
+
+**Data acquired** (agent-fetched, verified on disk, ~28 GB): EARS subset
+(25 speakers, 1.37 h pure whisper), EmoV-DB, AniSpeech (MIT character
+voices), ASVP-ESD, JL-Corpus, CREMA-D, TESS. (The 15 Mozilla Data Collective
+sets are login-walled; at least one bans voice cloning — skipped.)
+
+**Inversions:** wave 1: 62/80 banked (RAVDESS happy/angry/fearful ×24 actors
++ 8 Thorsten styles incl. the first whisper, cross-lingual, 0.651). Wave 2:
+49/50 EARS refs — English whispers labeled up to **0.880**. Bank: 307 → **418
+real pairs**, whisper/emotion represented for the first time.
+
+**Retrains (all centered-qwen, old center kept for comparability):**
+| head | val set | qwen |
+|---|---|---|
+| shipped yesterday (ex512pca) | 43 corpus voices | 0.5047 |
+| interim (wave-1 bank) 512×2+PCA | 52 voices (+expressive) | 0.5234 |
+| deeper variants 768×3 / 1024×3 | same | 0.4878 / 0.4876 |
+| **final fh_d10 (418-pair bank)** | **58 voices (+whisper refs)** | **0.5240** |
+
+Depth re-tested with 14× data and expressive coverage: **still negative**
+(third and fourth confirmations). Small head + PCA front remains optimal.
+
+**Shipped:** `style_encoder_qwen.onnx` (fh_d10) + its bound
+`style_basis.bin` (v3, fit incl. all expressive pairs). "My Mistress"
+instant-clone v1→v2→v3 demos delivered for the ear test — the coverage
+thesis's before/after.
+
 ## 📋 Planned next
 
 - **Pick winner config** from the sweep → update Kotlin `RefineEngine` +
