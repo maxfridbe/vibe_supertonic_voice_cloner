@@ -342,6 +342,31 @@ for the next round).
 (embed probe with qwen_spk_encoder.onnx + centering); retrain-select heads by
 qwen audio score in-loop; character-voice reference set for the app voices.
 
+## 2026-08-12 — Whisper-class case study: "my mistress" (✅ diagnosis, 🔄 verdict by ear)
+
+**Report:** on-device qwen clone of a whispered, heavily stylised recording
+sounded completely wrong. Server clone with identical models sounded the same
+→ **not an app bug: the encoder head is out-of-domain** (training bank =
+read speech + manufactured samples; zero whispered voices — the Dale pattern
+from the original research, again).
+
+**Escalation ladder, all delivered to the phone + Telegram demos:**
+| method | compute | centered qwen |
+|---|---|---|
+| instant encoder | ~1 s | (wrong by ear) |
+| qwen-scored refine | ~7 min | 0.575 → **0.812** |
+| gradient inversion (500 steps) | ~10 min | 0.946 (own metric) |
+
+**Also shipped meanwhile:** the app's refine now judges by centered qwen
+cosine when qwen_spk_encoder.onnx + qwen_center.bin are staged (app commit
+`c19888c`; center vector = qwen_feats_all population mean, 2048×f32); style
+JSON metadata now records analyzer/objective/scores/budget/version/date;
+RefineService takes iters/pop extras.
+
+**If the ear confirms the refine/inversion:** whisper-class is *reachable* —
+the fix is a data night inverting expressive/whispered recordings into the
+bank so the basis, head, and manufactured pairs all learn the class.
+
 ## 📋 Planned next
 
 - **Pick winner config** from the sweep → update Kotlin `RefineEngine` +
