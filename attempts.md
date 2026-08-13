@@ -419,7 +419,41 @@ sources, instant-v3 seed) → ladder demos to Telegram for the ear.
 
 **Note:** render_demo on server now needs `TORCHDYNAMO_DISABLE=1` — torch
 inductor started failing in the vocoder compile ("vr must not be None for
-symbol q1"); eager is fine and barely slower for one-off renders.
+symbol q1"); eager is fine and barely slower for one-off renders. Same bug
+killed the first bubbly invert.py run; eager invert measured **faster**
+anyway (594 vs 863 ms/iter) — use `TORCHDYNAMO_DISABLE=1` everywhere now.
+
+**Bubbly escalation ladder results (all delivered to Telegram):**
+| method | score | ear |
+|---|---|---|
+| instant v3 | qwen 0.510 | "not even close" |
+| qwen refine (8.5 min) | qwen 0.510 → **0.720** | better |
+| gradient inversion (500 steps) | ecapa 0.734 (vs mm's 0.946) | **worse than refine** |
+
+Two findings: (1) refine stalls at 0.72 vs the usual ~0.84 → the v3 basis
+itself under-spans this class, exactly the coverage signature; (2) the
+ECAPA+mel-loss *inversion* lost to the qwen-objective *refine* by ear — the
+referee flip now shows up even against the gradient method. Inversion labels
+remain useful as bank data, but qwen-refine is the quality path for delivery.
+
+## 2026-08-13 — Wave 3: bubbly/high-energy coverage night (🔄)
+
+**Hypothesis test that "we just need more voice types":** confirmed enough to
+act on (My Mistress = the causal experiment; bubbly = same signature).
+
+**Staged 94 refs** (flat layout, 47 per GPU, `stage_wave3.py`):
+- **AniSpeech** 52 character voices (parquet-packed; pyarrow-extracted,
+  caption transcripts) — the energetic/bright class itself
+- **JL-Corpus** 4 speakers × {excited, happy, encouraging, assertive,
+  anxious, apologetic, concerned, sad} with its own transcripts
+- **EmoV-DB** amused + sleepy × 4 speakers (whisper-small transcripts)
+- **TESS** 2 speakers, pleasant-surprise ("Say the word X" transcripts)
+
+**Pipeline** (`run_wave3.sh`, fully chained, Telegram notifies at each phase):
+invert both halves (GPU0+GPU1, eager) → merged_aux4 bank → basis v4 (k=384)
+→ mfg_v4 3000 pairs (GPU0) ∥ wave3 qwen features (GPU1) → qwen_feats_all4
+(OLD center kept) → fh4_d10/d15 heads → qwen-score → export_v4 → regenerate
+bubbly + mymistress instant v4 + demos. ETA ~5h invert + ~2h retrain.
 
 ## 📋 Planned next
 
