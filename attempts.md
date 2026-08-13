@@ -395,6 +395,32 @@ Depth re-tested with 14× data and expressive coverage: **still negative**
 instant-clone v1→v2→v3 demos delivered for the ear test — the coverage
 thesis's before/after.
 
+## 2026-08-13 — Instant-v3 ear tests: whisper fixed, bubbly-class fails (🔄)
+
+**Ear test 1 — "My Mistress" instant v3** (fh_d10 head, expressive bank):
+user verdict **"that sounds good"**. The coverage fix worked — a whispered,
+heavily stylised voice that the instant encoder previously got *completely
+wrong* is now acceptable with zero refine. The expressive-bank thesis is
+confirmed end-to-end (data → basis v3 → head → ear).
+
+**Ear test 2 — "Bubbly british girl" instant v3**: user verdict **"not even
+close"**. Same failure signature as pre-fix My Mistress: a delivery class
+the bank still doesn't cover. The 418-pair bank's expressive additions are
+emotion-acted (RAVDESS/CREMA/EmoV: angry/happy/sad/fearful) and whisper
+(EARS/Thorsten) — there is essentially **no high-energy bright/bubbly young
+female** delivery in it. AniSpeech (character voices) was downloaded but not
+yet inverted; TESS is older-female; JL-Corpus (young NZ adults, "excited"
+label) also uninverted — those are the candidate coverage for this class.
+
+**Running now** (same playbook as the My Mistress case): gradient inversion
+of `bubbly british girl.wav` on GPU0 (invert.py, muon, 500 steps, instant-v3
+seed) + qwen-objective refine on GPU1 (refine_qwen.py, k=384 v3-basis
+sources, instant-v3 seed) → ladder demos to Telegram for the ear.
+
+**Note:** render_demo on server now needs `TORCHDYNAMO_DISABLE=1` — torch
+inductor started failing in the vocoder compile ("vr must not be None for
+symbol q1"); eager is fine and barely slower for one-off renders.
+
 ## 📋 Planned next
 
 - **Pick winner config** from the sweep → update Kotlin `RefineEngine` +
