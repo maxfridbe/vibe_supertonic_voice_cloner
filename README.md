@@ -127,6 +127,27 @@ Supertonic client) plays it with no changes: **Speakers → Import style**.
 `style_ttl` conditions the flow/vocoder (timbre), `style_dp` the duration
 predictor (pace/rhythm); both are L2-normalised per row.
 
+## The Qwen-first direction (2026-08)
+
+The project's similarity metric is now **centered Qwen cosine**
+(`python/qwen_similarity.py`): cosine over Qwen3-TTS speaker features after
+subtracting a population mean (raw features share a dominant common component;
+centering restores a d′ 4.3 metric). ECAPA numbers are retired — verification
+embeddings erase delivery, which is exactly what makes character voices sound
+right, and the ear agreed with the Qwen judge.
+
+Calibration: the desktop inversions themselves score **0.4905** under this
+metric — the goal line. Current state against it:
+
+- `models/style_encoder_qwen.onnx` (the qwen analyzer head: 512×2 MLP +
+  PCA-256 front, trained with 4,000 manufactured qwen pairs): **0.5047** —
+  the instant encoder guess now exceeds the inversions' own similarity.
+- Refine with a **qwen-space objective** (probe embedded by
+  `qwen_spk_encoder.onnx`, centered cosine): mean **0.840** over 18 voices,
+  best 0.917 — far above the goal line, and listening-confirmed.
+
+The full experiment log lives in [attempts.md](attempts.md).
+
 ## License
 
 Apache-2.0. The models are derived from Supertonic 3 (its own license) and an
