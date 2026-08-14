@@ -521,8 +521,21 @@ every (embedding, style) training pair comes from ECAPA+mel inversion, so
 the labels are pulled toward ECAPA-optimal rather than sounds-right styles.
 Next structural move: make the label generator qwen-scored — either the
 refine flywheel (qwen-CMA refined styles as labels; forward-only, already
-proven) or a differentiable qwen speaker loss inside invert.py. Round-3
-refine for Ray (v4 basis, 90s ref, seeded from round-2) queued on idle GPUs.
+proven) or a differentiable qwen speaker loss inside invert.py.
+
+**Ray refine rounds 3–4 (v4 basis):** round 3 (200×24, seeded from v2's
+0.829) → **0.847**, full 200 gens, no plateau; ecapa *fell* 0.554→0.501 as
+qwen rose — the objectives actively diverge. Round 4 (400 gens, seeded from
+round 3) early-stopped at 26 gens / 0.840 → **converged; ~0.85 is the
+v4-basis ceiling for this voice** (v3 basis: 0.829 — wave 3 measurably
+raised a specific voice's ceiling). Accidental control: a mis-seeded round 4
+searched from scratch and reached only 0.781 in 172 gens — seeding from the
+best available style is worth ~0.07 (Dale lesson, quantified).
+
+**App:** speech-speed slider shipped (`ce7223c`, CI green): Jobs-tab SeekBar
+0.6×–1.6× persisted as speech_speed_pct; TtsService multiplies the engine's
+published 1.05 pace at synthesis time (jobs, live, hosted alike). The
+engine's generate() had the parameter all along; nothing exposed it.
 
 ## 📋 Planned next
 
