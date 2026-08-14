@@ -91,9 +91,11 @@ this voice".
 
 ```
 models/          the trained on-device graphs
-  spk_encoder.onnx     ECAPA speaker encoder (wav → 192-d)
-  style_encoder.onnx   translation head (embedding → style tensors)
-  style_basis.bin      PCA style basis for the refine search
+  style_encoder_qwen.onnx  the shipped translation head (qwen embedding → style)
+  qwen_center.bin          qwen population center for the similarity metric
+  style_basis.bin          v3 PCA style basis (k=384) for the refine search
+  spk_encoder.onnx         ECAPA speaker encoder (wav → 192-d), comparison variant
+  style_encoder.onnx       ECAPA translation head, comparison variant
 python/          the scripts that produce all of the above (see python/README.md)
 rust/clonevoice/ a sample CLI: wav in, style JSON out (the encoder path)
 ```
@@ -140,11 +142,19 @@ Calibration: the desktop inversions themselves score **0.4905** under this
 metric — the goal line. Current state against it:
 
 - `models/style_encoder_qwen.onnx` (the qwen analyzer head: 512×2 MLP +
-  PCA-256 front, trained with 4,000 manufactured qwen pairs): **0.5047** —
-  the instant encoder guess now exceeds the inversions' own similarity.
+  PCA-256 front — "fh_d10", trained on a **418-pair expressive bank** of
+  inverted real speakers incl. emotion and whisper, plus 3,000 manufactured
+  qwen pairs): **0.524** over 58 held-out voices — the instant encoder guess
+  exceeds the inversions' own similarity. The expressive bank is what fixed
+  whisper-class voices (previously "completely wrong" by ear, now good with
+  zero refine); delivery classes still absent from the bank remain the
+  failure mode, and each is fixed by inverting examples and retraining.
 - Refine with a **qwen-space objective** (probe embedded by
-  `qwen_spk_encoder.onnx`, centered cosine): mean **0.840** over 18 voices,
-  best 0.917 — far above the goal line, and listening-confirmed.
+  `qwen_spk_encoder.onnx`, centered cosine against `models/qwen_center.bin`):
+  mean **0.840** over 18 voices, best 0.917 — far above the goal line,
+  listening-confirmed, and by ear it has beaten even the gradient inversion
+  on an expressive voice (the inversion optimises ECAPA+mel; the refine
+  optimises the metric the ear agrees with).
 
 The full experiment log lives in [attempts.md](attempts.md).
 
