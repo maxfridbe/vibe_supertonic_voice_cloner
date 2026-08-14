@@ -537,6 +537,32 @@ best available style is worth ~0.07 (Dale lesson, quantified).
 published 1.05 pace at synthesis time (jobs, live, hosted alike). The
 engine's generate() had the parameter all along; nothing exposed it.
 
+## 2026-08-14 — Flywheel night launched (🔄)
+
+**The structural response to the referee-flip finding**: stop using ECAPA
+inversions as labels for expressive voices. Running now (`run_flywheel.sh`):
+
+1. **Qwen-relabel** all 224 expressive refs (exp/ears/wave3) + the 3 user
+   voices (Ray Porter 90s, bubbly, mymistress — their qwen-refined styles
+   are the seeds, so the search continues from the best known point; bank
+   styles seed the rest). Both GPUs, ~113 refs each, iters 120 patience 25.
+2. **Bank v5**: relabeled styles replace the ECAPA-inversion labels
+   (`relabel_to_bank.py`; cos ← qwen_held, the label-quality weight
+   train_translation already uses); user voices join as new pairs.
+   LibriSpeech/VCTK read-speech labels stay ECAPA for now (least harmed;
+   full relabel is a future night).
+3. Basis v5, mfg v5 (3000), features_all5 (old center kept), fh5_d10/d15
+   **with the score_styles render step** (the wave-3 lesson), export_v5,
+   instant-v5 demos for the 3 test voices, Telegram notify per phase.
+
+Known limitation, accepted: relabeled styles live inside span(v4 basis), so
+v5's basis can re-weight but not expand the span — span growth still comes
+from inversion waves; label *quality* is what this night buys.
+
+**Expresso re-download started** (38 GB; the earlier tar didn't survive on
+disk) → staging + qwen-labeling is the next wave. TED-LIUM skipped:
+LibriSpeech already covers read narration.
+
 ## 📋 Planned next
 
 - **Pick winner config** from the sweep → update Kotlin `RefineEngine` +
