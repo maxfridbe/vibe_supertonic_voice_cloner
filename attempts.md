@@ -455,6 +455,30 @@ invert both halves (GPU0+GPU1, eager) → merged_aux4 bank → basis v4 (k=384)
 (OLD center kept) → fh4_d10/d15 heads → qwen-score → export_v4 → regenerate
 bubbly + mymistress instant v4 + demos. ETA ~5h invert + ~2h retrain.
 
+## 2026-08-13 — Ray Porter case (🔄) + models deployed to the app
+
+**New voice: Ray Porter** (Bobiverse Audible sample, clean narration,
+whisper-verified). Ladder so far, all delivered to Telegram:
+| method | centered qwen | ear |
+|---|---|---|
+| instant v3 | 0.524 (exactly the head's par) | "does not sound good" |
+| qwen refine, 21s ref | 0.513 → 0.819 (9.4 m) | "not amazing" |
+| refine round 2: 90s ref + 200×24 budget, seeded from round 1 | 0.815 → **0.829**, early-stopped at 93 gens | — |
+
+Round 2's tiny gain despite 2.4× budget and a 4× longer reference = **the v3
+basis ceiling for this voice**, not a search failure. Queued for tonight
+(auto-runs after wave 3): gradient inversion + instant/refine v4 over the new
+basis. GPU-borrowing trick worked twice: SIGSTOP the wave-3 B-half driver,
+let its in-flight inversion finish, refine on GPU1, SIGCONT — wave cost
+≈ refine time only.
+
+**Deployed to production** (user request): app repo `08a67ef` ships fh_d10 +
+basis v3 + qwen_center.bin via the in-app downloader; the basis is served as
+`style_basis_v3.bin` because a k=384 refit never changes byte size and size
+is the downloader's only cache-buster (RefineEngine falls back to a
+side-loaded `style_basis.bin`). CI APK build green (run 31760098760). Cloner
+repo `084c486`: qwen_center.bin checked in, READMEs to current numbers.
+
 ## 📋 Planned next
 
 - **Pick winner config** from the sweep → update Kotlin `RefineEngine` +
