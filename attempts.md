@@ -513,6 +513,17 @@ ECAPA-optimal ≠ qwen-optimal, and the ear has sided with qwen every time.
 Delivered to Telegram: Ray INVERTED + bubbly/mm INSTANT v4 (JSONs + demos);
 qwen-preferred Ray remains REFINED v2 (0.829, v3-basis ceiling).
 
+**Ear verdict on Ray INVERTED: "does not sound right"** — the third
+consecutive ear-loss for ECAPA-optimizing inversion (bubbly, and by score
+mymistress's inversion was never ear-preferred over its refine either).
+**Referee flip is conclusive, and it indicts the bank labels themselves:**
+every (embedding, style) training pair comes from ECAPA+mel inversion, so
+the labels are pulled toward ECAPA-optimal rather than sounds-right styles.
+Next structural move: make the label generator qwen-scored — either the
+refine flywheel (qwen-CMA refined styles as labels; forward-only, already
+proven) or a differentiable qwen speaker loss inside invert.py. Round-3
+refine for Ray (v4 basis, 90s ref, seeded from round-2) queued on idle GPUs.
+
 ## 📋 Planned next
 
 - **Pick winner config** from the sweep → update Kotlin `RefineEngine` +
