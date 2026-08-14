@@ -479,6 +479,40 @@ is the downloader's only cache-buster (RefineEngine falls back to a
 side-loaded `style_basis.bin`). CI APK build green (run 31760098760). Cloner
 repo `084c486`: qwen_center.bin checked in, READMEs to current numbers.
 
+## 2026-08-14 — Wave 3 results: bank 511, v4 heads, Ray Porter ladder (✅ run, 🔄 ear)
+
+**Inversions: 93/94 banked** (one quality-gated), bank 418 → **511 real
+pairs**. Basis v4 written (round-trip err 6e-6).
+
+**Pipeline bug + fix:** the v4 train() omitted the `score_styles` step — which
+*renders* the val styles that the qwen scorer reads — so scoring/export/demos
+cascaded (heads themselves trained fine). Fix script ran the missed tail;
+lesson: the escore step is not optional even though ECAPA numbers are retired,
+because it produces `score_work/`.
+
+**v4 heads** (511-pair bank, 3000 mfg v4 pairs, features_all4, old center):
+val mse 2.42 → **2.09**; centered-qwen fh4_d10 **0.5163** / fh4_d15 0.5103
+over 71 voices (v3: 0.5240/58 — larger, harder val set incl. the new
+character/excited classes; not directly comparable). Goal line 0.4905.
+
+**Paired instant-clone scores** (demo vs ref, centered qwen — the real
+before/after):
+| voice | instant v3 | instant v4 |
+|---|---|---|
+| bubbly | 0.463 | **0.535** |
+| my mistress | ~0.52 | **0.629** |
+| ray porter | 0.513 | 0.526 |
+
+Coverage wave moved its target class (+0.07 bubbly) and *improved* whisper
+(+0.11) — no catastrophic forgetting.
+
+**Ray Porter ladder complete:** v4 refine 0.479→0.813 (21s ref); inversion
+best **0.9447 ECAPA @300** — but its held-out demo scores only **0.398
+centered-qwen**: the referee flip again, now on the strongest inversion yet.
+ECAPA-optimal ≠ qwen-optimal, and the ear has sided with qwen every time.
+Delivered to Telegram: Ray INVERTED + bubbly/mm INSTANT v4 (JSONs + demos);
+qwen-preferred Ray remains REFINED v2 (0.829, v3-basis ceiling).
+
 ## 📋 Planned next
 
 - **Pick winner config** from the sweep → update Kotlin `RefineEngine` +
