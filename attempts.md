@@ -594,9 +594,17 @@ voices clone near-perfectly instantly). Bubbly flat: her label improved
 only 0.69→0.74 — the voice itself sits at the basis edge.
 
 Instant-v5 JSONs + demos delivered to Telegram. Expresso tar (38 GB)
-fully downloaded, unstaged. GPUs idle. **Not yet deployed to the app** —
-awaiting ear verdict on the v5 demos; deploy = same motion as v3
-(versioned basis name style_basis_v5.bin).
+fully downloaded, unstaged. GPUs idle.
+
+**Ear verdict: Ray instant v5 "not better"** despite the paired metric's
++0.14 — the demo-vs-ref qwen score and the ear diverge at the instant tier
+for this voice (the metric may be partly rewarding bank memorization).
+User shipped v5 anyway for the CI build. Deployed: app `8e25be2` — and the
+HEAD filename is now versioned too (style_encoder_qwen_v5.onnx): the
+architecture is fixed, so every retrain is byte-size-identical, and v5 would
+never have reached existing installs under the old name (same trap as the
+basis, caught at deploy time). Fallback chains: head v5→legacy, basis
+v5→v3→legacy. Cloner repo `5fe45b8`.
 
 ## 📋 Planned next
 

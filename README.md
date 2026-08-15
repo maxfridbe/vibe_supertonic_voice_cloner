@@ -93,7 +93,7 @@ this voice".
 models/          the trained on-device graphs
   style_encoder_qwen.onnx  the shipped translation head (qwen embedding → style)
   qwen_center.bin          qwen population center for the similarity metric
-  style_basis.bin          v3 PCA style basis (k=384) for the refine search
+  style_basis.bin          v5 PCA style basis (k=384) for the refine search
   spk_encoder.onnx         ECAPA speaker encoder (wav → 192-d), comparison variant
   style_encoder.onnx       ECAPA translation head, comparison variant
 python/          the scripts that produce all of the above (see python/README.md)
