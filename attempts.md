@@ -563,6 +563,41 @@ from inversion waves; label *quality* is what this night buys.
 disk) → staging + qwen-labeling is the next wave. TED-LIUM skipped:
 LibriSpeech already covers read narration.
 
+## 2026-08-15 — Flywheel results: the biggest jump yet (✅, 🔄 ear)
+
+**All 227 refs qwen-relabeled** (4 workers, 2 per GPU after mid-run
+rebalances; ~5 min avg each). Bank v5 = 514 pairs: 224 expressive labels
+replaced (ECAPA-inversion → qwen-CMA), user voices (rayporter_long, bubbly,
+mymistress) added as first-class pairs. val mse 2.09 → **2.04**.
+
+**Centered-qwen, val heads (old center):**
+| head | score | val set |
+|---|---|---|
+| v3 (fh_d10) | 0.5240 | 58 |
+| v4 (fh4_d10) | 0.5163 | 71 |
+| **v5 (fh5_d10)** | **0.5883** | **77** |
+
+Label quality was worth **+0.072** — more than any data wave. The referee
+flip finding cashed out: training on ear-endorsed labels moves the encoder
+more than adding voices did.
+
+**Paired instant-clone scores** (demo vs ref):
+| voice | v3 | v4 | **v5** |
+|---|---|---|---|
+| ray porter | 0.513 | 0.526 | **0.669** |
+| bubbly | 0.463 | 0.535 | 0.536 |
+| my mistress | ~0.52 | 0.629 | **0.746** |
+
+Ray +0.14 and mymistress +0.12 in one night (both are IN the bank now —
+partly memorization, but that is the fold-in working as designed: known
+voices clone near-perfectly instantly). Bubbly flat: her label improved
+only 0.69→0.74 — the voice itself sits at the basis edge.
+
+Instant-v5 JSONs + demos delivered to Telegram. Expresso tar (38 GB)
+fully downloaded, unstaged. GPUs idle. **Not yet deployed to the app** —
+awaiting ear verdict on the v5 demos; deploy = same motion as v3
+(versioned basis name style_basis_v5.bin).
+
 ## 📋 Planned next
 
 - **Pick winner config** from the sweep → update Kotlin `RefineEngine` +
