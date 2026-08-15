@@ -142,13 +142,14 @@ Calibration: the desktop inversions themselves score **0.4905** under this
 metric — the goal line. Current state against it:
 
 - `models/style_encoder_qwen.onnx` (the qwen analyzer head: 512×2 MLP +
-  PCA-256 front — "fh_d10", trained on a **418-pair expressive bank** of
-  inverted real speakers incl. emotion and whisper, plus 3,000 manufactured
-  qwen pairs): **0.524** over 58 held-out voices — the instant encoder guess
-  exceeds the inversions' own similarity. The expressive bank is what fixed
-  whisper-class voices (previously "completely wrong" by ear, now good with
-  zero refine); delivery classes still absent from the bank remain the
-  failure mode, and each is fixed by inverting examples and retraining.
+  PCA-256 front — "fh5_d10", trained on a **qwen-relabeled 514-pair bank**:
+  the flywheel regenerated every expressive voice's label with the
+  qwen-objective refine after three consecutive ear tests sided with the
+  qwen judge over ECAPA inversion): **0.588** over 77 held-out voices — the
+  label-quality change alone was worth +0.07, more than any data wave. The
+  expressive bank fixed whisper-class voices; delivery classes still absent
+  from the bank remain the failure mode, and each is fixed by adding labeled
+  examples and retraining.
 - Refine with a **qwen-space objective** (probe embedded by
   `qwen_spk_encoder.onnx`, centered cosine against `models/qwen_center.bin`):
   mean **0.840** over 18 voices, best 0.917 — far above the goal line,
