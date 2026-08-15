@@ -606,6 +606,64 @@ never have reached existing installs under the old name (same trap as the
 basis, caught at deploy time). Fallback chains: head v5→legacy, basis
 v5→v3→legacy. Cloner repo `5fe45b8`.
 
+## 2026-08-15 — Wave 5 launched: Expresso + FULL-bank relabel → v6 (🔄)
+
+**Running** (`run_wave5.sh`, Telegram phase notifies):
+1. Extract + stage Expresso (per speaker×style 8-13s concats, whisper-small
+   transcripts, layout-tolerant parser) → `expresso_refs/`.
+2. Seed each Expresso ref with its **instant v5 clone** (qclone on export_v5)
+   — the seed-from-best lesson applied to brand-new voices.
+3. **Full-bank relabel**: the ~307 LibriSpeech/VCTK read-speech pairs still
+   carrying ECAPA labels + all Expresso refs, 4 workers (2/GPU), qwen-CMA,
+   bank-style seeds. Completes the label-consistency job the flywheel started.
+4. Bank v6 (+ `merged_aux6_clean.npz` twin with the 3 user voices REMOVED),
+   basis v6, mfg 3000, features_all6 (old center).
+5. **Leave-out protocol** (the Ray-verdict fix): measurement heads d10/d15
+   train on the CLEAN bank so the reported score cannot be self-graded on
+   user voices; the ship head retrains the winning config on the full bank.
+6. Export v6 + instant-v6 demos of the 3 user voices.
+
+## 📋 Plan: manufactured-pair scaling (#3, ready to run)
+
+**Question:** is the head data-starved at the synthetic end? mfg pairs were
+the biggest early lever (+0.086 at 3,000); we never scaled past it.
+
+**Design:** one night, both GPUs on generation (gen_style_pairs2 saturates a
+GPU; run two seeds in parallel per GPU writing separate dirs):
+- Generate +21,000 pairs over the CURRENT basis (v6 by then): 4 dirs × 5,250,
+  seeds 40-43, then qwen-embed all (audiobook venv, GPU) → extra_24k.npz.
+- Train the fixed winner arch at extra-pair budgets 3k / 6k / 12k / 24k
+  (~35 min each on one GPU, sequential), same features/center, CLEAN bank
+  only (leave-out protocol), same val split (seed 0).
+- Read: monotone gain → scale further; plateau ≤6k → close the lever and
+  record; gain only with degraded real-pair weight → adjust W-weighting.
+**Cost:** ~6 h generation + ~2.5 h training. **Risk:** none — additive.
+**Success:** ≥ +0.01 clean-val centered-qwen at 24k over 3k.
+
+## 📋 Plan: architecture re-sweep on clean labels (#4, after #3)
+
+**Question:** depth lost 4× — but all 4 sweeps trained on ECAPA labels.
+Qwen relabeling changed the target function; the old conclusion needs one
+cheap re-test before we keep citing it.
+
+**Design:** 6 configs × ~35 min, one GPU, all on the clean v6 bank with the
+best extra-pair budget from #3, PCA-256 unless noted:
+| config | tests |
+|---|---|
+| 512×2 (baseline, = ship arch) | control |
+| 768×2 | width |
+| 512×3 | depth (the 4×-loser, retried on clean labels) |
+| 1024×2 | width++ |
+| 512×2, PCA-384 | input front capacity |
+| 512×2, no PCA | is the front still decisive? |
+**Guardrails:** same steps (14k), same val split, dropout fixed at the #3
+winner; report clean-val centered-qwen + escore; only a ≥ +0.01 gain over
+control on the SAME val set counts (the 4 prior sweeps differed by ~0.005
+noise).
+**Cost:** ~3.5 h. **Risk:** none — measurement only.
+**Prediction on record:** small head still wins; PCA-384 is the only live
+candidate (feature space got richer as labels got cleaner).
+
 ## 📋 Planned next
 
 - **Pick winner config** from the sweep → update Kotlin `RefineEngine` +
